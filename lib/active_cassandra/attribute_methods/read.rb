@@ -10,7 +10,7 @@ module ActiveCassandra
       end
       
       def read_attribute(attribute_name)
-        @attributes[attribute_name]
+        @attributes[attribute_name.to_s]
       end
      
       private
