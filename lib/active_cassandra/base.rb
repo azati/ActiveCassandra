@@ -11,7 +11,7 @@ module ActiveCassandra
      
       delegate :all, :first, :last, :to => :getter
       delegate :find, :to => :getter
-      delegate :delete, :to => :getter
+      delegate :destroy, :to => :getter
       
       def establish_connection(spec)
         config = configurations[spec.to_s].symbolize_keys

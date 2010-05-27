@@ -23,7 +23,7 @@ module ActiveCassandra
       @column_family.insert(key, attributes)
     end
     
-    def delete(key)
+    def destroy(key)
       @column_family.remove(key)
     end
     
