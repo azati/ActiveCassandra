@@ -22,9 +22,10 @@ module ActiveCassandra
         keyspace = config[:keyspace]
   
         # Require the MySQL driver and define Mysql::Result.all_hashes
-        unless defined? Cassandra
+        unless defined? CassandraRuby
           begin
-            require_library_or_gem 'cassandra'
+            require_library_or_gem 'thrift'
+            require_library_or_gem 'cassandra_ruby'
           rescue LoadError
             $stderr.puts '!!! Please install the cassandra gem and try again: gem install cassandra.'
             raise
@@ -32,7 +33,7 @@ module ActiveCassandra
         end
 
       
-        self.connection = Cassandra.new(keyspace, ["#{host}:#{port}"])
+        self.connection = CassandraRuby::Keyspace.new(CassandraRuby::Cassandra.new(host), keyspace)
       end
      
       def instantiate(key, row)
@@ -104,6 +105,12 @@ module ActiveCassandra
    
    def initialize(attributes = nil, &block)
      @attributes = {}
+     
+     self.class.native_attributes.each do |attr|
+       options = attr[:options]
+       @attributes[attr[:name]] = options[:default].blank? ? attr[:type].new : options[:default] 
+     end
+     
      @attributes_cache = {}
      @new_record = true
      @readonly = false
@@ -192,6 +199,8 @@ module ActiveCassandra
     
     include AttributeMethods::Read, AttributeMethods::Write
     extend ActiveModel::Naming
+    
+    extend NativeAttribute
     
     #include 
   end

@@ -7,7 +7,7 @@ module ActiveCassandra
    
     
     def save
-      self.class.getter.insert(self.key, self.attributes)
+      self.class.getter.insert(self.key, self.attributes) 
     end
    
     def destroy

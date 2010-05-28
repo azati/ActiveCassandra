@@ -6,17 +6,27 @@ module ActiveCassandra
       @column_family = column_family
     end
     
+    def attributes_from_columns(columns)
+      attributes = {}
+      columns.each do |column|
+        attributes[column.name] = column.value
+      end
+      attributes
+    end
+    
     def all
       result = []
-      @column_family.get_range.each do |row| 
-        result << @klass.instantiate(row.key, @column_family.get(row.key)) unless row.columns.blank?
+      @column_family.get(:all).each do |key, columns|
+        next if columns.empty?
+        result << @klass.instantiate(key, attributes_from_columns(columns))
       end
       result
     end
     
     def find(key)
-      attributes = @column_family.get(key)
-      @klass.instantiate(key, attributes)
+      columns = @column_family.get(key)
+      return nil if columns.blank?
+      @klass.instantiate(key, attributes_from_columns(columns))
     end
     
     def insert(key, attributes)

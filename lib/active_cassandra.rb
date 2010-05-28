@@ -14,7 +14,7 @@ module ActiveCassandra
     autoload :ColumnFamily
     autoload :Base
     autoload :Persistence
-    
+    autoload :NativeAttribute
   end
   
   module AttributeMethods
