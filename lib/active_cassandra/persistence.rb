@@ -4,10 +4,15 @@ module ActiveCassandra
     def ClassMethods
      
     end
-   
     
-    def save
-      self.class.getter.insert(self.key, self.attributes) 
+    def save(*args)
+      attributes_to_insert = {}
+
+      attributes.each do |key, value|
+        attributes_to_insert[key] = value.to_s
+      end
+
+      self.class.getter.insert(self.key, attributes_to_insert)
     end
    
     def destroy

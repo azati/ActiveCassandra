@@ -6,7 +6,7 @@ module ActiveCassandra
       included do
         attribute_method_suffix ""   
         # Undefine id so it can be used as an attribute name
-        undef_method(:id) if method_defined?(:id)
+        #undef_method(:id) if method_defined?(:id)
       end
       
       def read_attribute(attribute_name)
@@ -15,6 +15,7 @@ module ActiveCassandra
      
       private
         def attribute(attribute_name)
+          
           read_attribute(attribute_name)
         end
      

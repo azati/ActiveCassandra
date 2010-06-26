@@ -6,6 +6,9 @@ module ActiveCassandra
     @@configurations = {}
     
     class_inheritable_accessor :connection
+
+    cattr_accessor :primary_key_prefix_type, :instance_writer => false
+    @@primary_key_prefix_type = nil
     
     class << self
      
@@ -24,7 +27,6 @@ module ActiveCassandra
         # Require the MySQL driver and define Mysql::Result.all_hashes
         unless defined? CassandraRuby
           begin
-            require_library_or_gem 'thrift'
             require_library_or_gem 'cassandra_ruby'
           rescue LoadError
             $stderr.puts '!!! Please install the cassandra gem and try again: gem install cassandra.'
@@ -49,8 +51,8 @@ module ActiveCassandra
         object.instance_variable_set(:@changed_attributes, {})
         object.instance_variable_set(:@key, key)
   
-        #object.send(:_run_find_callbacks)
-        #object.send(:_run_initialize_callbacks)
+        object.send(:_run_find_callbacks)
+        object.send(:_run_initialize_callbacks)
   
         object
       end
@@ -93,22 +95,31 @@ module ActiveCassandra
           object
         end
       end
-     
-      
-      #include Persistence
-      
-      
-    
-      #include ActiveModel::AttributeMethodMatcher
-       
+
+      def validates_uniqueness_of(*attr_names)
+        #validates_with UniquenessValidator, _merge_attributes(attr_names)
+      end
+
+      def base_class
+        class_of_active_record_descendant(self)
+      end
+
+      def class_of_active_record_descendant(klass)
+        if klass.superclass == Base || klass.superclass.abstract_class?
+          klass
+        elsif klass.superclass.nil?
+          raise ActiveCassandraError, "#{name} doesn't belong in a hierarchy descending from ActiveRecord"
+        else
+          class_of_active_record_descendant(klass.superclass)
+        end
+      end
    end
    
    def initialize(attributes = nil, &block)
      @attributes = {}
      
-     self.class.native_attributes.each do |attr|
-       options = attr[:options]
-       @attributes[attr[:name]] = options[:default].blank? ? attr[:type].new : options[:default] 
+     self.class.columns.each do |column|
+       @attributes[column.name] = column.value
      end
      
      @attributes_cache = {}
@@ -119,12 +130,12 @@ module ActiveCassandra
      @previously_changed = {}
      @changed_attributes = {}
      ## USE GUID HERE
-     @key = rand(10000).to_s
+     @key = next_key
      
      self.attributes = attributes unless attributes.nil?
 
      result = yield self if block_given?
-     #_run_initialize_callbacks
+     _run_initialize_callbacks
      result
      
    end
@@ -134,17 +145,16 @@ module ActiveCassandra
      
      attributes = new_attributes.stringify_keys 
 
-     @attributes = attributes
      #multi_parameter_attributes = []
      #attributes = remove_attributes_protected_from_mass_assignment(attributes) if guard_protected_attributes
 
-     #attributes.each do |k, v|
-     #  if k.include?("(")
-     #    multi_parameter_attributes << [ k, v ]
-     #  else
-     #    respond_to?(:"#{k}=") ? send(:"#{k}=", v) : raise(UnknownAttributeError, "unknown attribute: #{k}")
-     #  end
-     #end
+     attributes.each do |k, v|
+       if k.include?("(")
+         multi_parameter_attributes << [ k, v ]
+       else
+         respond_to?(:"#{k}=") ? send(:"#{k}=", v) : raise(UnknownAttributeError, "unknown attribute: #{k}")
+       end
+     end
 
      #assign_multiparameter_attributes(multi_parameter_attributes)
    end
@@ -152,44 +162,34 @@ module ActiveCassandra
   # Returns a hash of all the attributes with their names as keys and the values of the attributes as values.
    def attributes
      attrs = {}
-     attribute_names.each { |name| attrs[name] = read_attribute(name) }
+     column_names.each { |name| attrs[name] = read_attribute(name) }
      attrs
    end
+
+   def column_names
+     self.class.column_names
+   end
    
-   def attribute_names
-     @attributes.keys.sort
+   def next_key
+     rand(100000).to_s
    end
    
    def key
      @key
    end
-   
-   def to_key
-     [ @key ]
-   end
-   
-   
-   
-        
-  #Base.class_eval do
-  #  
-  #end
-        
-   
-  
-  #Base.class_eval do
-    
-    #include ActiveModel::AttributeMethods::ClassMethods
-    
-  #end
+
+   alias :id :key
     
   end
   
   Base.class_eval do
-    
-    
-    
+  
+   
     include ActiveCassandra::Persistence
+    extend ActiveModel::Naming
+    extend ActiveSupport::Benchmarkable
+
+   include Validations
     
     include ActiveModel::AttributeMethods
     include ActiveModel::Validations
@@ -197,12 +197,13 @@ module ActiveCassandra
     
     include AttributeMethods
     
-    include AttributeMethods::Read, AttributeMethods::Write
-    extend ActiveModel::Naming
+    include AttributeMethods::Read, AttributeMethods::Write, AttributeMethods::PrimaryKey
+
+    include Callbacks
     
-    extend NativeAttribute
     
-    #include 
+    include Columns
+
   end
   
 end
