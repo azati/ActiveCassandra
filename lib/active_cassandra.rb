@@ -11,10 +11,15 @@ module ActiveCassandra
   eager_autoload do
     autoload :AttributeMethods
     autoload :NonRelation
+    autoload :Indexer
     autoload :ColumnFamily
+    autoload :SuperColumnFamily
     autoload :Base
     autoload :Persistence
-    autoload :NativeAttribute
+    autoload :Columns
+    autoload :Validations
+    autoload :Callbacks
+    autoload :DynamicFinderMatch
   end
   
   module AttributeMethods
@@ -23,7 +28,19 @@ module ActiveCassandra
     eager_autoload do
       autoload :Read
       autoload :Write
+      autoload :PrimaryKey
+      autoload :Dirty
+    end
+  end
+
+  module Validations
+    extend ActiveSupport::Autoload
+
+    eager_autoload do
+      autoload :Associated
+      autoload :Uniqueness
     end
   end
   
 end
+

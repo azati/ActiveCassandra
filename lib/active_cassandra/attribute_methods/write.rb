@@ -33,7 +33,6 @@ module ActiveCassandra
       private
         # Handle *= for method_missing.
         def attribute=(attribute_name, value)
-          puts "inside"
           write_attribute(attribute_name, value)
         end
      

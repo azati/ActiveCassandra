@@ -77,6 +77,14 @@ module ActiveCassandra
         @getter ||= NonRelation.new(self, column_family)
       end
       
+      def indexer
+        @indexer ||= Indexer.new(self, indexes_column_family)
+      end
+      
+      def indexes_column_family
+        SuperColumnFamily.new("indexes", connection)
+      end
+      
       def column_family
         ColumnFamily.new(column_family_name, connection)
       end
@@ -113,6 +121,62 @@ module ActiveCassandra
           class_of_active_record_descendant(klass.superclass)
         end
       end
+      
+      def method_missing(method_id, *arguments, &block)
+ 
+        if match = DynamicFinderMatch.match(method_id)
+          attribute_names = match.attribute_names
+          super unless all_attributes_exists?(attribute_names)
+          if match.finder?
+            indexer.find(attribute_names[0], arguments[0])
+#            options = arguments.extract_options!
+#            relation = options.any? ? construct_finder_arel(options, current_scoped_methods) : scoped
+#            relation.send :find_by_attributes, match, attribute_names, *arguments
+          elsif match.instantiator?
+#            scoped.send :find_or_instantiator_by_attributes, match, attribute_names, *arguments, &block
+          end
+#          elsif match = DynamicScopeMatch.match(method_id)
+#            attribute_names = match.attribute_names
+#            super unless all_attributes_exists?(attribute_names)
+#            if match.scope?
+#              self.class_eval <<-METHOD, __FILE__, __LINE__ + 1
+#                def self.#{method_id}(*args)                        # def self.scoped_by_user_name_and_password(*args)
+#                  options = args.extract_options!                   #   options = args.extract_options!
+#                  attributes = construct_attributes_from_arguments( #   attributes = construct_attributes_from_arguments(
+#                    [:#{attribute_names.join(',:')}], args          #     [:user_name, :password], args
+#                  )                                                 #   )
+#                                                                    #
+#                  scoped(:conditions => attributes)                 #   scoped(:conditions => attributes)
+#                end                                                 # end
+#              METHOD
+#              send(method_id, *arguments)
+#            end
+        else
+          super
+        end
+        
+      end
+    
+      def all_attributes_exists?(attribute_names)
+        #attribute_names = expand_attribute_names_for_aggregates(attribute_names)
+        attribute_names.all? { |name| column_methods_hash.include?(name.to_sym) }
+      end
+    
+      def with_scope(method_scoping = {}, action = :merge, &block)
+        p method_scoping.inspect
+        result = []
+        method_scoping[:find].each do |key, value|
+          result << indexer.find(key.to_s, value)[0]        
+        end
+        
+          yield
+        
+        
+        #result[0]
+      end
+    
+      alias :find_by_key :find
+    
    end
    
    def initialize(attributes = nil, &block)
@@ -165,9 +229,27 @@ module ActiveCassandra
      column_names.each { |name| attrs[name] = read_attribute(name) }
      attrs
    end
+   
+   def columns
+     #unless defined?(@columns) && @columns
+     #  @columns = connection.columns(table_name, "#{name} Columns")
+     #  @columns.each { |column| column.primary = column.name == primary_key }
+     #end
+     self.class.columns
+   end
 
    def column_names
      self.class.column_names
+   end
+   
+   def columns_hash
+     @columns_hash ||= columns.inject({}) { |hash, column| hash[column.name] = column; hash }
+   end
+   
+
+    
+   def column_for_attribute(name)
+     self.class.columns_hash[name.to_s]
    end
    
    def next_key
@@ -179,6 +261,15 @@ module ActiveCassandra
    end
 
    alias :id :key
+   
+   protected 
+   
+    def clone_attribute_value(reader_method, attribute_name)
+      value = send(reader_method, attribute_name)
+      value.duplicable? ? value.clone : value
+    rescue TypeError, NoMethodError
+      value
+    end
     
   end
   
@@ -189,7 +280,7 @@ module ActiveCassandra
     extend ActiveModel::Naming
     extend ActiveSupport::Benchmarkable
 
-   include Validations
+    include Validations
     
     include ActiveModel::AttributeMethods
     include ActiveModel::Validations
@@ -197,7 +288,7 @@ module ActiveCassandra
     
     include AttributeMethods
     
-    include AttributeMethods::Read, AttributeMethods::Write, AttributeMethods::PrimaryKey
+    include AttributeMethods::Read, AttributeMethods::Write, AttributeMethods::PrimaryKey, AttributeMethods::Dirty
 
     include Callbacks
     
