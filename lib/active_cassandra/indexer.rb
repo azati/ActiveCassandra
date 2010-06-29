@@ -28,9 +28,7 @@ module ActiveCassandra
     end
     
     def find(index_column, index_value)
-      p index_column.inspect
-      p index_value.inspect
-      
+
       super_column = super_column_name(index_column)
       
       keys = @column_family.get(index_value, super_column)
@@ -41,13 +39,11 @@ module ActiveCassandra
       keys.columns.each do |key|
         result << @klass.getter.find(key.name)
       end
-      #@klass.instantiate(key, attributes_from_columns(columns))
+      
       result[0]
     end
     
     def insert(index_column, index_value, attributes)
-      p index_column.inspect
-      p index_value.inspect
       super_column = super_column_name(index_column)
       @column_family.insert(index_value, attributes, super_column)
     end

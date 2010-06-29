@@ -20,6 +20,7 @@ module ActiveCassandra
     autoload :Validations
     autoload :Callbacks
     autoload :DynamicFinderMatch
+    autoload :Errors
   end
   
   module AttributeMethods
