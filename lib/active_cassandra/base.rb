@@ -1,6 +1,7 @@
 module ActiveCassandra
   class Base
-    #include AttributeMethods
+      
+    cattr_accessor :logger, :instance_writer => false
     
     cattr_accessor :configurations, :instance_writer => false
     @@configurations = {}
@@ -12,12 +13,51 @@ module ActiveCassandra
     
     class << self
      
-      delegate :all, :first, :last, :to => :getter
-      delegate :find, :to => :getter
-      delegate :destroy, :to => :getter
+      #delegate :all, :first, :last, :to => :getter
+      #delegate :find, :to => :getter
+      #delegate :destroy, :to => :getter
+
+      delegate :find, :first, :last, :all, :destroy, :destroy_all, :exists?, :delete, :delete_all, :update, :update_all, :to => :unscoped
+      delegate :find_each, :find_in_batches, :to => :unscoped
+      delegate :select, :group, :order, :limit, :joins, :where, :preload, :eager_load, :includes, :from, :lock, :readonly, :having, :to => :unscoped
+      delegate :count, :average, :minimum, :maximum, :sum, :calculate, :to => :unscoped
+      
+      # Attributes listed as readonly can be set for a new record, but will be ignored in database updates afterwards.
+      def attr_readonly(*attributes)
+        write_inheritable_attribute(:attr_readonly, Set.new(attributes.map(&:to_s)) + (readonly_attributes || []))
+      end
+
+      # Returns an array of all the attributes that have been specified as readonly.
+      def readonly_attributes
+        read_inheritable_attribute(:attr_readonly) || []
+      end
+      
+      # If you have an attribute that needs to be saved to the database as an object, and retrieved as the same object,
+      # then specify the name of that attribute using this method and it will be handled automatically.
+      # The serialization is done through YAML. If +class_name+ is specified, the serialized object must be of that
+      # class on retrieval or SerializationTypeMismatch will be raised.
+      #
+      # ==== Parameters
+      #
+      # * +attr_name+ - The field name that should be serialized.
+      # * +class_name+ - Optional, class name that the object type should be equal to.
+      #
+      # ==== Example
+      #   # Serialize a preferences attribute
+      #   class User
+      #     serialize :preferences
+      #   end
+      def serialize(attr_name, class_name = Object)
+        serialized_attributes[attr_name.to_s] = class_name
+      end
+
+      # Returns a hash of all the attributes that have been specified for serialization as keys and their class restriction as values.
+      def serialized_attributes
+        read_inheritable_attribute(:attr_serialized) or write_inheritable_attribute(:attr_serialized, {})
+      end
       
       def establish_connection(spec)
-        config = configurations[spec.to_s].symbolize_keys
+        config = configurations["cassandra_#{spec}"].symbolize_keys
         host     = (config[:host] || 'localhost') 
         port     = (config[:port] || '9160')
         username = config[:username] ? config[:username].to_s : 'root'
@@ -71,6 +111,12 @@ module ActiveCassandra
               "or overwrite #{name}.inheritance_column to use another column for that information."
           end
         end
+      end
+      
+      def unscoped
+        @unscoped ||= NonRelation.new(self, column_family)
+        ## TODO: JUST KEEP IN MIND TO DO SMTH WHEN DEFINE WHAT WILL HAPPEN WITH .where METHOD
+        #finder_needs_type_condition? ? @unscoped.where(type_condition) : @unscoped
       end
       
       def getter
@@ -163,7 +209,6 @@ module ActiveCassandra
       end
     
       def with_scope(method_scoping = {}, action = :merge, &block)
-        p method_scoping.inspect
         result = []
         method_scoping[:find].each do |key, value|
           result << indexer.find(key.to_s, value)[0]        
@@ -183,7 +228,7 @@ module ActiveCassandra
      @attributes = {}
      
      self.class.columns.each do |column|
-       @attributes[column.name] = column.value
+       @attributes[column.name] = column.default
      end
      
      @attributes_cache = {}
@@ -202,6 +247,10 @@ module ActiveCassandra
      _run_initialize_callbacks
      result
      
+   end
+   
+   def attribute_names
+     @attributes.keys.sort
    end
    
    def attributes=(new_attributes, guard_protected_attributes = true)
@@ -228,6 +277,28 @@ module ActiveCassandra
      attrs = {}
      column_names.each { |name| attrs[name] = read_attribute(name) }
      attrs
+   end
+   
+   # Returns the value of the attribute identified by <tt>attr_name</tt> after it has been typecast (for example,
+   # "2004-12-12" in a data column is cast to a date object, like Date.new(2004, 12, 12)).
+   # (Alias for the protected read_attribute method).
+   def [](attr_name)
+     read_attribute(attr_name)
+   end
+
+   # Updates the attribute identified by <tt>attr_name</tt> with the specified +value+.
+   # (Alias for the protected write_attribute method).
+   def []=(attr_name, value)
+     write_attribute(attr_name, value)
+   end
+   
+   def readonly?
+     @readonly
+   end
+
+   # Marks this record as read only.
+   def readonly!
+     @readonly = true
    end
    
    def columns
@@ -271,6 +342,48 @@ module ActiveCassandra
       value
     end
     
+   private
+   
+    def attributes_values(include_primary_key = false, include_readonly_attributes = true, attribute_names = @attributes.keys)
+      attrs = {}
+      attribute_names.each do |name|
+        if (column = column_for_attribute(name)) && (include_primary_key || !column.primary)
+
+          if include_readonly_attributes || (!include_readonly_attributes && !self.class.readonly_attributes.include?(name))
+            value = read_attribute(name)
+
+            if value && ((self.class.serialized_attributes.has_key?(name) && (value.acts_like?(:date) || value.acts_like?(:time))) || value.is_a?(Hash) || value.is_a?(Array))
+              value = value.to_yaml
+            end
+            
+            value = value.to_s unless value.kind_of?(String)
+            
+            attrs[name] = value
+          end
+        end
+      end
+      attrs
+    end
+   
+    #TODO: REVIEW LATER
+    #def arel_attributes_values(include_primary_key = false, include_readonly_attributes = true, attribute_names = @attributes.keys)
+    #  attrs = {}
+    #  attribute_names.each do |name|
+    #    if (column = column_for_attribute(name)) && (include_primary_key || !column.primary)
+    #
+    #     if include_readonly_attributes || (!include_readonly_attributes && !self.class.readonly_attributes.include?(name))
+    #        value = read_attribute(name)
+    #
+    #        if value && ((self.class.serialized_attributes.has_key?(name) && (value.acts_like?(:date) || value.acts_like?(:time))) || value.is_a?(Hash) || value.is_a?(Array))
+    #          value = value.to_yaml
+    #        end
+    #        attrs[self.class.arel_table[name]] = value
+    #      end
+    #    end
+    #  end
+    #  attrs
+    #end
+    
   end
   
   Base.class_eval do
@@ -291,7 +404,7 @@ module ActiveCassandra
     include AttributeMethods::Read, AttributeMethods::Write, AttributeMethods::PrimaryKey, AttributeMethods::Dirty
 
     include Callbacks
-    
+    include ActiveCassandra::Indexes
     
     include Columns
 

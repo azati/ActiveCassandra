@@ -16,7 +16,7 @@ module ActiveCassandra
     
   end
 end
-
+=begin
 require 'active_support/core_ext/enumerable'
 
 module ActiveCassandra
@@ -76,3 +76,4 @@ module ActiveCassandra
       end
   end
 end
+=end

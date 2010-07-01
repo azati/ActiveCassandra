@@ -7,25 +7,37 @@ module ActiveCassandra
 
     class Column
 
-      attr_reader   :name
-      attr_accessor :value
-      attr_reader   :timestamp
+      attr_reader   :name      
       attr_reader   :type
       attr_reader   :index
-
-      def initialize(name, type, value, options = {})
-        @name = name
-        @value = value
-        @type = type
-        @index = options[:index] ? true :false
-        #@timestamp = timestamp
+      attr_reader   :primary
+      attr_reader   :default
+      
+      def initialize(name, default, type, index = false, null = true)
+        @name, @type, @index, @null = name, type, index, null
+        #@limit, @precision, @scale = extract_limit(sql_type), extract_precision(sql_type), extract_scale(sql_type)
+        #@type = simplified_type(sql_type)
+        @default = extract_default(default)
+        
+        @primary = nil
       end
+      
+      #def initialize(name, type, default, options = {})
+      #  @name = name
+      #  @default = default
+      #  @type = type
+      #  @index = options[:index] == true
+      #  @primary = nil
+      #  #@timestamp = timestamp
+      #end
       
       def number?
         false
       end
       
       def type_cast(value)
+        #return "" if value.nil?
+        
         return nil if value.nil?
         case type
           when :string    then value
@@ -42,6 +54,10 @@ module ActiveCassandra
           else value
         end
       end
+      
+      def extract_default(default)
+        type_cast(default)
+      end
 
     end
 
@@ -53,9 +69,8 @@ module ActiveCassandra
       
 
       def column(name, type, options = {})
-        @columns ||= []
-        value = options[:default]
-        @columns << Column.new(name.to_s, type, value, options)
+        @columns ||= []     
+        @columns << Column.new(name.to_s, options[:default], type, options[:index], false)
       end
 
       def columns

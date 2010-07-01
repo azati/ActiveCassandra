@@ -11,7 +11,7 @@ module ActiveCassandra
   eager_autoload do
     autoload :AttributeMethods
     autoload :NonRelation
-    autoload :Indexer
+    autoload :Indexes
     autoload :ColumnFamily
     autoload :SuperColumnFamily
     autoload :Base

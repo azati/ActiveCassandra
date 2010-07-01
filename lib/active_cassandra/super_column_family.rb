@@ -14,19 +14,12 @@ module ActiveCassandra
       end
     end
     
-    def insert(key, attributes, super_column = nil)
-      p attributes
-      p @column_family_name
-      p super_column
-      p key
+    def insert(key, attributes, super_column = nil)     
       @connection[key].insert(@column_family_name, super_column, attributes, Time.now) 
       true  
     end
     
     def remove(key, super_column = nil)
-      p key
-      p super_column
-      p @column_family_name
       @connection[key].remove(@column_family_name, super_column, nil, Time.now)
       true
     end
