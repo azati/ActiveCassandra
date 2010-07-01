@@ -35,11 +35,11 @@ However you can use both of ActiveRecord and ActiveCassandra in your application
 
 Example of ActiveCassandra model:
 
-class User < ActiveCassandra::Base
-  column   :login,              :string, :index => true
-  column   :persistence_token,  :string, :index => true
-  column   :created_at,   	:datetime
-end
+  class User < ActiveCassandra::Base
+    column   :login,              :string, :index => true
+    column   :persistence_token,  :string, :index => true
+    column   :created_at,   	  :datetime
+  end
 
 In all other cases you have to expect familiar to ActiveRecord behaviour. But this is not about joins, includes and other specialized sql-statements.
 ActiveCassandra is under deep development so be patient please :).
