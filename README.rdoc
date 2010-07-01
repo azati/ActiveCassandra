@@ -2,34 +2,27 @@
 
 ActiveCassandra is corresponding to Rails 3.0 version, so you need to use Rails 3.0.0.beta4(latest at this moment).
 
-Install ActiveCassandra and <a href="http://github.com/azati/cassandra-ruby">cassandra-ruby</a> as a plugins to your application.
+Install ActiveCassandra and http://github.com/azati/cassandra-ruby as a plugins to your application.
 
 Require ActiveCassandra in config/application.rb file
-<code>
-require 'active_cassandra/railtie'
-</code>
+  require 'active_cassandra/railtie'
 
 Edit config/database.rb with your configuration of cassandra database
 
 Example:
 
-<code>
-cassandra_development:
-  keyspace: authlogictest_development
-  port: 9160
-</code>
+  cassandra_development:
+    keyspace: authlogictest_development
+    port: 9160
 
 *We are planning to add support of cassandra auth soon
 
 If you want to completely disable ActiveRecord you should edit your config/application.rb file:
 
 remove line
-<code>
   require 'rails/all'
-</code>
 
 and add following lines:
-<code>
   require "action_controller/railtie"
   require "action_mailer/railtie"
   require "active_resource/railtie"
@@ -37,19 +30,16 @@ and add following lines:
   require "active_model/railtie"
   require 'active_cassandra/railtie'
   require "rails/test_unit/railtie"
-</code>
 
 However you can use both of ActiveRecord and ActiveCassandra in your application.
 
 Example of ActiveCassandra model:
 
-<code>
 class User < ActiveCassandra::Base
   column   :login,              :string, :index => true
   column   :persistence_token,  :string, :index => true
   column   :created_at,   	:datetime
 end
-</code>
 
 In all other cases you have to expect familiar to ActiveRecord behaviour. But this is not about joins, includes and other specialized sql-statements.
 ActiveCassandra is under deep development so be patient please :).
