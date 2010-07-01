@@ -73,9 +73,11 @@ module ActiveCassandra
             raise
           end
         end
-
+        client_options = {
+          :port => port          
+        }
       
-        self.connection = CassandraRuby::Keyspace.new(CassandraRuby::Cassandra.new(host), keyspace)
+        self.connection = CassandraRuby::Keyspace.new(CassandraRuby::Cassandra.new(host, client_options), keyspace)
       end
      
       def instantiate(key, row)
